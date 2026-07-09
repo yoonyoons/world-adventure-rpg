@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌍 신나는 세계 탐험 RPG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
+        /* 픽셀 폰트 추가 */
+        @import url('https://fonts.googleapis.com/css2?family=Galmuri9&display=swap');
+
+        body {
+            font-family: 'Jua', sans-serif;
+            background-color: #e0f2fe;
+            margin: 0; padding: 0;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        /* 픽셀 아트 전용 폰트 클래스 */
+        .font-pixel { font-family: 'Galmuri9', sans-serif; }
+        /* 픽셀 이미지 렌더링 선명하게 유지 */
+        .pixel-art { image-rendering: pixelated; width: 100%; height: 100%; }
+
+        /* -------------------------------------
+           ✨ 게임 애니메이션 효과 모음 ✨
+        ------------------------------------- */
+        .pop-in { animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .bounce-hover:hover { animation: bounce 1s infinite; }
+        .float-anim { animation: floatAnim 3s ease-in-out infinite; }
+        .stamp-bang { animation: stampBang 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards; }
+        .floating-text {
+            position: fixed; color: #fbbf24; font-weight: black; text-shadow: 2px 2px 0 #b45309;
+            z-index: 9999; pointer-events: none; animation: floatUpFade 1.5s forwards; font-size: 2rem;
+        }
+
+        @keyframes popIn { 0% { transform: scale(0.1); opacity: 0; } 80% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        @keyframes floatAnim { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        @keyframes stampBang { 0% { transform: scale(5) rotate(-30deg); opacity: 0; } 50% { transform: scale(0.8) rotate(10deg); opacity: 1; } 100% { transform: scale(1) rotate(-15deg); opacity: 1; } }
+        @keyframes floatUpFade { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-50px) scale(1.2); } }
+
+        /* 커스텀 스크롤바 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #fbbf24; border-radius: 10px; }
+
+        .modal-bg { background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(5px); z-index: 100; }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 4px solid white; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+
+        /* 16:9 비율 유지 (모달) */
+        .aspect-16-9-modal { width: 95vw; max-width: 1200px; height: 90vh; max-height: 800px; }
+        @media (min-width: 1024px) { .aspect-16-9-modal { aspect-ratio: 16 / 9; height: auto; max-height: 90vh; } }
+
+        /* 박물관 조명 효과 */
+        .museum-spotlight {
+            background: radial-gradient(circle at top, rgba(255,255,200,0.3) 0%, transparent 60%);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center pb-24 md:pb-32 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+
+    <!-- 1. 상단 상태바 (HUD) -->
+    <header class="fixed top-0 left-0 w-full z-50 p-2 md:p-4 pointer-events-none">
+        <div class="max-w-5xl mx-auto flex justify-between items-start gap-2 pointer-events-auto">
+            <div class="bg-white/95 backdrop-blur-md border-4 border-yellow-400 rounded-full p-2 flex items-center shadow-xl flex-1 max-w-sm">
+                <div class="w-12 h-12 md:w-16 md:h-16 bg-yellow-100 rounded-full border-4 border-yellow-500 flex items-center justify-center text-3xl md:text-4xl shadow-inner relative" id="hudAvatar">
+                    🧑‍🚀
+                </div>
+                <div class="ml-3 flex-1">
+                    <div class="flex justify-between items-end mb-1">
+                        <span class="text-sm md:text-base font-black text-yellow-800" id="hudTitle">초보 탐험가</span>
+                        <span class="text-lg md:text-xl font-black text-yellow-600">Lv.<span id="hudLevel">1</span></span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3 md:h-4 border-2 border-gray-300 overflow-hidden relative">
+                        <div id="hudExpBar" class="bg-gradient-to-r from-green-400 to-emerald-500 h-full w-0 transition-all duration-500 ease-out"></div>
+                        <div class="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-black text-gray-700/80 drop-shadow-sm"><span id="hudExpText">0 / 100</span> EXP</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 타이틀 -->
+    <div class="w-full max-w-4xl text-center mt-28 md:mt-32 mb-6 relative z-10 px-4">
+        <h1 class="text-4xl md:text-6xl font-black text-blue-800 drop-shadow-lg mb-2">🌍 월드 어드벤처 RPG</h1>
+        <p class="text-lg md:text-2xl text-blue-700 font-bold bg-white/80 inline-block px-6 py-2 rounded-full shadow-sm border-2 border-white">버튼을 눌러 미지의 세계로 떠나자!</p>
+    </div>
+
+    <!-- 오늘의 퀘스트 배너 -->
+    <div class="w-[90%] max-w-4xl glass-panel rounded-3xl p-4 md:p-6 mb-8 flex flex-col md:flex-row items-center justify-between z-10 gap-4 hover:scale-[1.02] transition-transform cursor-pointer" onclick="openMissions()">
+        <div class="flex items-center gap-4 w-full">
+            <span class="text-5xl md:text-6xl float-anim drop-shadow-md">📜</span>
+            <div class="text-left flex-1">
+                <h3 class="text-xl md:text-2xl font-black text-orange-800 mb-1 flex items-center gap-2">선생님의 일일 미션! <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">NEW</span></h3>
+                <p id="mainQuestDesc" class="text-sm md:text-lg text-gray-800 font-bold bg-orange-100 px-4 py-1.5 rounded-xl border-2 border-orange-200 inline-block">임무를 불러오는 중...</p>
+            </div>
+            <div id="mainQuestStatus" class="hidden md:flex bg-gray-200 text-gray-600 px-4 py-2 rounded-2xl font-black border-2 border-gray-300">진행 중</div>
+        </div>
+    </div>
+
+    <!-- 대륙 선택 (큰 버튼 그리드) -->
+    <main class="w-[95%] max-w-5xl glass-panel rounded-[3rem] p-6 md:p-10 mb-8 z-10 relative overflow-hidden">
+        <div class="absolute top-0 right-0 text-[15rem] opacity-5 pointer-events-none transform rotate-12 translate-x-1/4 -translate-y-1/4">🗺️</div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-8 relative z-10">
+            <button onclick="showContinent('아시아')" class="bg-gradient-to-br from-yellow-100 to-amber-200 hover:from-yellow-200 hover:to-amber-300 border-[6px] border-white p-6 md:p-8 rounded-[2rem] shadow-lg hover:shadow-2xl transform hover:-translate-y-2 transition-all flex flex-col items-center justify-center gap-3 group">
+                <span class="text-5xl md:text-7xl group-hover:scale-125 transition-transform drop-shadow-md">⛩️</span>
+                <span class="text-2xl md:text-4xl font-black text-amber-900 bg-white/60 px-4 py-1 rounded-full shadow-sm">아시아</span>
+            </button>
+            <button onclick="showContinent('유럽')" class="bg-gradient-to-br from-blue-100 to-indigo-200 hover:from-blue-200 hover:to-indigo-300 border-[6px] border-white p-6 md:p-8 rounded-[2rem] shadow-lg hover:shadow-2xl transform hover:-translate-y-2 transition-all flex flex-col items-center justify-center gap-3 group">
+                <span class="text-5xl md:text-7xl group-hover:scale-125 transition-transform drop-shadow-md">🏰</span>
+                <span class="text-2xl md:text-4xl font-black text-indigo-900 bg-white/60 px-4 py-1 rounded-full shadow-sm">유럽</span>
+            </button>
+            <button onclick="showContinent('아프리카')" class="bg-gradient-to-br from-orange-100 to-red-200 hover:from-orange-200 hover:to-red-300 border-[6px] border-white p-6 md:p-8 rounded-[2rem] shadow-lg hover:shadow-2xl transform hover:-translate-y-2 transition-all flex flex-col items-center justify-center gap-3 group">
+                <span class="text-5xl md:text-7xl group-hover:scale-125 transition-transform drop-shadow-md">🦁</span>
+                <span class="text-2xl md:text-4xl font-black text-red-900 bg-white/60 px-4 py-1 rounded-full shadow-sm">아프리카</span>
+            </button>
+            <button onclick="showContinent('북아메리카')" class="bg-gradient-to-br from-rose-100 to-pink-200 hover:from-rose-200 hover:to-pink-300 border-[6px] border-white p-6 md:p-8 rounded-[2rem] shadow-lg hover:shadow-2xl transform hover:-translate-y-2 transition-all flex flex-col items-center justify-center gap-3 group">
+                <span class="text-5xl md:text-7xl group-hover:scale-125 transition-transform drop-shadow-md">🗽</span>
+                <span class="text-2xl md:text-4xl font-black text-pink-900 bg-white/60 px-4 py-1 rounded-full shadow-sm">북아메리카</span>
+            </button>
+            <button onclick="showContinent('남아메리카')" class="bg-gradient-to-br from-green-100 to-emerald-200 hover:from-green-200 hover:to-emerald-300 border-[6px] border-white p-6 md:p-8 rounded-[2rem] shadow-lg hover:shadow-2xl transform hover:-translate-y-2 transition-all flex flex-col items-center justify-center gap-3 group">
+                <span class="text-5xl md:text-7xl group-hover:scale-125 transition-transform drop-shadow-md">🦜</span>
+                <span class="text-2xl md:text-4xl font-black text-emerald-900 bg-white/60 px-4 py-1 rounded-full shadow-sm">남아메리카</span>
+            </button>
+            <button onclick="showContinent('오세아니아')" class="bg-gradient-to-br from-cyan-100 to-sky-200 hover:from-cyan-200 hover:to-sky-300 border-[6px] border-white p-6 md:p-8 rounded-[2rem] shadow-lg hover:shadow-2xl transform hover:-translate-y-2 transition-all flex flex-col items-center justify-center gap-3 group">
+                <span class="text-5xl md:text-7xl group-hover:scale-125 transition-transform drop-shadow-md">🦘</span>
+                <span class="text-2xl md:text-4xl font-black text-sky-900 bg-white/60 px-4 py-1 rounded-full shadow-sm">오세아니아</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- 네비게이션 -->
+    <nav class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-lg border-4 border-blue-200 px-6 py-3 rounded-full shadow-2xl flex items-center gap-4 md:gap-8 z-40 w-[95%] md:w-auto justify-between md:justify-center overflow-x-auto">
+        <button onclick="openMissions()" class="flex flex-col items-center group relative min-w-[60px]">
+            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-2xl group-hover:-translate-y-2 transition-transform border-2 border-blue-300 shadow"><i class="fas fa-scroll text-blue-600"></i></div>
+            <span class="text-xs font-bold text-blue-800 mt-1">퀘스트</span>
+            <span id="navQuestDot" class="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full animate-ping hidden"></span>
+        </button>
+        <button onclick="openCharacters()" class="flex flex-col items-center group min-w-[60px]">
+            <div class="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center text-2xl group-hover:-translate-y-2 transition-transform border-2 border-pink-300 shadow">🐼</div>
+            <span class="text-xs font-bold text-pink-800 mt-1">친구도감</span>
+        </button>
+        <button onclick="startQuiz()" class="flex flex-col items-center group relative min-w-[60px]">
+            <div class="w-14 h-14 bg-emerald-500 rounded-full flex items-center justify-center text-3xl group-hover:-translate-y-2 transition-transform border-4 border-emerald-200 shadow-lg text-white shine-effect -mt-4"><i class="fas fa-gamepad"></i></div>
+            <span class="text-xs font-bold text-emerald-800 mt-1">퀴즈게임</span>
+        </button>
+        <button onclick="openMuseum()" class="flex flex-col items-center group min-w-[60px]">
+            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-2xl group-hover:-translate-y-2 transition-transform border-2 border-purple-300 shadow"><i class="fas fa-landmark text-purple-600"></i></div>
+            <span class="text-xs font-bold text-purple-800 mt-1">박물관</span>
+        </button>
+    </nav>
+
+    <!-- [모달] 대륙별 나라 목록 -->
+    <div id="continentModal" class="fixed inset-0 modal-bg hidden items-center justify-center p-4">
+        <div class="bg-blue-50 rounded-[2.5rem] shadow-2xl max-w-4xl w-full border-[8px] border-blue-400 pop-in flex flex-col max-h-[85vh] relative overflow-hidden">
+            <div class="p-6 bg-blue-500 flex justify-between items-center shadow-md relative z-10 border-b-4 border-blue-600">
+                <h3 id="continentTitle" class="text-3xl md:text-4xl font-black text-white flex items-center gap-3 drop-shadow-md">대륙 이름</h3>
+                <button onclick="closeModal('continentModal')" class="text-white hover:text-red-200 text-4xl transition-colors"><i class="fas fa-times-circle"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 relative z-10">
+                <div id="countryList" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- [모달] 나라 발견 스탬프 -->
+    <div id="newVisitModal" class="fixed inset-0 bg-white/90 backdrop-blur-sm hidden items-center justify-center z-[110] p-4 flex-col cursor-pointer" onclick="closeVisitAndOpenCountry()">
+        <h2 class="text-4xl md:text-6xl font-black text-blue-800 mb-8 drop-shadow-lg text-center">새로운 나라 발견!</h2>
+        <div class="relative w-64 h-64 md:w-80 md:h-80 flex items-center justify-center">
+            <div class="absolute inset-0 bg-[url('https://upload.wikimedia.org/wikipedia/commons/4/4b/Sunburst_starburst.svg')] bg-center bg-cover animate-[spin_10s_linear_infinite] opacity-30"></div>
+            <div id="visitStampWrap" class="w-48 h-48 md:w-56 md:h-56 rounded-full border-[12px] border-red-500 flex items-center justify-center bg-white shadow-2xl relative z-10 opacity-0">
+                <img id="visitStampImg" src="" class="w-full h-full object-cover rounded-full filter sepia-[0.2] contrast-125">
+                <div class="absolute inset-0 border-[8px] border-white/50 border-dashed rounded-full"></div>
+            </div>
+        </div>
+        <p class="text-2xl font-bold text-gray-700 mt-8 bg-yellow-100 px-6 py-2 rounded-full border-4 border-yellow-300 pop-in delay-500">화면을 눌러 탐험을 시작하세요!</p>
+    </div>
+
+    <!-- [모달] 나라 상세 정보 (랜드마크 사진 추가) -->
+    <div id="countryModal" class="fixed inset-0 modal-bg hidden items-center justify-center p-2 md:p-4 z-[100]">
+        <div class="bg-white rounded-[2rem] md:rounded-[3rem] shadow-2xl border-[6px] md:border-[8px] border-yellow-400 pop-in relative overflow-hidden flex flex-col md:flex-row items-stretch aspect-16-9-modal">
+            <button onclick="closeModal('countryModal')" class="absolute top-2 right-2 md:top-4 md:right-4 bg-white/90 hover:bg-white text-gray-500 hover:text-red-500 w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-2xl md:text-3xl transition-colors shadow-md z-30"><i class="fas fa-times-circle"></i></button>
+
+            <!-- 왼쪽: 국기, 캐릭터 -->
+            <div class="w-full md:w-1/3 bg-gradient-to-b from-yellow-100 to-orange-50 p-4 md:p-6 flex flex-col items-center justify-start relative border-b-4 md:border-b-0 md:border-r-4 border-yellow-300 overflow-y-auto h-[35%] md:h-full shrink-0">
+                <div class="w-32 h-20 md:w-48 md:h-32 border-[4px] md:border-[6px] border-white rounded-2xl overflow-hidden shadow-xl bg-gray-100 flex items-center justify-center transform -rotate-2 group shrink-0 mb-4">
+                    <img id="modalFlag" src="" alt="국기" class="w-full h-full object-cover group-hover:scale-110 transition-transform">
+                </div>
+                <h3 id="modalName" class="text-3xl md:text-5xl font-black text-gray-900 drop-shadow-sm bg-white inline-block px-6 py-2 rounded-[2rem] border-4 border-yellow-400 transform rotate-1 shadow-md mb-4 text-center">이름</h3>
+
+                <div class="w-full bg-white/80 rounded-2xl p-3 border-2 border-dashed border-orange-300 flex items-center gap-3 mb-3 shadow-sm">
+                    <div id="modalCharEmoji" class="text-4xl bg-orange-100 w-12 h-12 rounded-full flex items-center justify-center shadow-inner">❓</div>
+                    <div class="text-left flex-1">
+                        <p class="text-xs font-bold text-orange-600">이 나라의 친구</p>
+                        <p id="modalCharName" class="text-sm md:text-base font-black text-gray-800">미발견</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 오른쪽: 상세 정보 및 챗봇 -->
+            <div class="w-full md:w-2/3 flex flex-col bg-white relative z-10 overflow-hidden h-[65%] md:h-full">
+                <!-- 정보 스크롤 영역 -->
+                <div class="p-3 md:p-5 bg-yellow-50/30 flex-1 overflow-y-auto border-b-4 border-gray-100 flex flex-col justify-start">
+                    <div class="grid grid-cols-2 gap-2 md:gap-3 mb-2">
+                        <div class="flex items-center bg-white p-2 md:p-3 rounded-xl border border-gray-200 shadow-sm"><span class="bg-gray-100 text-lg md:text-xl p-1.5 rounded-full mr-2">🏛️</span> <div><span class="text-[10px] text-gray-400 block">수도</span><span id="modalCapital" class="text-xs md:text-sm font-bold text-gray-800 break-words"></span></div></div>
+                        <div class="flex items-center bg-white p-2 md:p-3 rounded-xl border border-gray-200 shadow-sm"><span class="bg-gray-100 text-lg md:text-xl p-1.5 rounded-full mr-2">👨‍👩‍👧‍👦</span> <div><span class="text-[10px] text-gray-400 block">인구</span><span id="modalPopulation" class="text-xs md:text-sm font-bold text-gray-800 break-words"></span></div></div>
+                        <div class="flex items-center bg-white p-2 md:p-3 rounded-xl border border-gray-200 shadow-sm"><span class="bg-gray-100 text-lg md:text-xl p-1.5 rounded-full mr-2">🗣️</span> <div><span class="text-[10px] text-gray-400 block">언어</span><span id="modalLanguage" class="text-xs md:text-sm font-bold text-gray-800 break-words"></span></div></div>
+                        <div class="flex items-center bg-white p-2 md:p-3 rounded-xl border border-gray-200 shadow-sm"><span class="bg-gray-100 text-lg md:text-xl p-1.5 rounded-full mr-2">📏</span> <div><span class="text-[10px] text-gray-400 block">면적</span><span id="modalArea" class="text-xs md:text-sm font-bold text-gray-800 break-words"></span></div></div>
+                        <div class="flex items-center bg-white p-2 md:p-3 rounded-xl border border-gray-200 shadow-sm"><span class="bg-gray-100 text-lg md:text-xl p-1.5 rounded-full mr-2">💰</span> <div><span class="text-[10px] text-gray-400 block">화폐</span><span id="modalCurrency" class="text-xs md:text-sm font-bold text-gray-800 break-words"></span></div></div>
+                        <div class="flex items-center bg-white p-2 md:p-3 rounded-xl border border-gray-200 shadow-sm"><span class="bg-gray-100 text-lg md:text-xl p-1.5 rounded-full mr-2">🍲</span> <div><span class="text-[10px] text-gray-400 block">대표 음식</span><span id="modalFood" class="text-xs md:text-sm font-bold text-gray-800 break-words"></span></div></div>
+                    </div>
+
+                    <div class="flex items-start bg-white p-3 md:p-4 rounded-xl shadow-sm border-l-4 border-yellow-400 mt-2 shrink-0">
+                        <span class="text-xl md:text-2xl mr-2">🌟</span>
+                        <div class="w-full">
+                            <span class="text-[10px] font-bold text-yellow-600 block">자랑거리</span>
+                            <span id="modalFact" class="text-xs md:text-sm text-gray-700 font-bold leading-relaxed break-keep"></span>
+                        </div>
+                    </div>
+
+                    <!-- 📸 랜드마크 이미지 영역 -->
+                    <div class="flex flex-col bg-white p-3 md:p-4 rounded-xl shadow-sm border-l-4 border-blue-400 mt-3 shrink-0">
+                        <span class="text-[10px] font-bold text-blue-600 block mb-2">📸 대표 랜드마크 (<span id="modalLandmarkName"></span>)</span>
+                        <div class="w-full h-32 md:h-48 bg-slate-100 rounded-lg overflow-hidden relative flex items-center justify-center border border-slate-200 group">
+                            <!-- 로딩 표시 -->
+                            <div id="landmarkLoading" class="flex flex-col items-center text-slate-400">
+                                <i class="fas fa-camera fa-spin mb-2 text-2xl"></i>
+                                <span class="text-xs font-bold">사진을 불러오는 중...</span>
+                            </div>
+                            <!-- 실제 이미지 -->
+                            <img id="modalLandmarkImg" src="" class="w-full h-full object-cover hidden transition-opacity duration-500 opacity-0 group-hover:scale-105" onload="this.classList.remove('hidden', 'opacity-0'); document.getElementById('landmarkLoading').classList.add('hidden');">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 챗봇 영역 -->
+                <div class="h-40 md:h-[40%] flex flex-col bg-indigo-50 shrink-0">
+                    <div class="bg-indigo-600 text-white px-3 py-2 flex items-center justify-between shadow-sm shrink-0">
+                        <span class="font-bold text-sm md:text-base flex items-center gap-2"><div class="w-6 h-6 bg-white rounded-full flex items-center justify-center text-xs text-black">🧑‍🚀</div> <span id="chatTitle" class="truncate">선생님에게 물어보기</span></span>
+                        <span class="text-xs bg-indigo-800 px-2 py-1 rounded-full text-indigo-200">질문 시 +5 EXP</span>
+                    </div>
+                    <div id="modalChatMessages" class="flex-1 overflow-y-auto p-3 flex flex-col gap-2 text-left text-xs md:text-sm scroll-smooth"></div>
+                    <div class="p-2 md:p-3 bg-white border-t-2 border-indigo-100 flex gap-2 shrink-0">
+                        <input type="text" id="modalChatInput" placeholder="예: 유명한 음식은 뭐야?" class="flex-1 border-2 border-indigo-200 rounded-full px-4 py-2 focus:outline-none focus:border-indigo-400 text-xs md:text-sm font-bold" onkeypress="if(event.key === 'Enter') sendMessage()">
+                        <button onclick="sendMessage()" class="bg-indigo-500 hover:bg-indigo-600 text-white rounded-full w-10 h-10 flex items-center justify-center shadow transition-transform hover:scale-105">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- [모달] 일일 퀘스트 -->
+    <div id="missionsModal" class="fixed inset-0 modal-bg hidden items-center justify-center p-4 z-[100]"><div class="bg-white rounded-[2rem] shadow-2xl max-w-md w-full border-[6px] border-orange-400 pop-in flex flex-col"><div class="p-4 bg-orange-500 flex justify-between items-center rounded-t-[1.5rem] border-b-4 border-orange-600"><h3 class="text-2xl font-black text-white flex items-center gap-2"><i class="fas fa-scroll"></i> 오늘의 퀘스트</h3><button onclick="closeModal('missionsModal')" class="text-white hover:text-red-200 text-3xl"><i class="fas fa-times-circle"></i></button></div><div class="p-6 bg-orange-50/50 flex flex-col gap-4" id="missionListContainer"></div></div></div>
+
+    <!-- [모달] 캐릭터 도감 -->
+    <div id="charsModal" class="fixed inset-0 modal-bg hidden items-center justify-center p-4 z-[100]"><div class="bg-pink-50 rounded-[2.5rem] shadow-2xl max-w-4xl w-full border-[8px] border-pink-400 pop-in flex flex-col max-h-[85vh]"><div class="p-5 bg-pink-500 flex justify-between items-center shadow-md border-b-4 border-pink-600"><h3 class="text-3xl font-black text-white flex items-center gap-3">📖 세계 친구 도감</h3><div class="flex items-center gap-4"><span class="bg-pink-800 text-white px-4 py-1 rounded-full font-bold text-lg">달성률 <span id="charProgress">0%</span></span><button onclick="closeModal('charsModal')" class="text-white hover:text-red-200 text-4xl"><i class="fas fa-times-circle"></i></button></div></div><div class="p-6 overflow-y-auto flex-1"><div id="charGrid" class="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4"></div></div></div></div>
+
+    <!-- [모달] 🏛️ 보물 박물관 -->
+    <div id="museumModal" class="fixed inset-0 modal-bg hidden items-center justify-center p-4 z-[100]"><div class="bg-slate-900 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] max-w-6xl w-full border-[8px] border-slate-700 pop-in flex flex-col h-[90vh] aspect-16-9-modal overflow-hidden relative"><div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/black-scales.png')] opacity-30 pointer-events-none"></div><div class="p-5 md:p-6 bg-gradient-to-r from-slate-800 to-slate-900 flex justify-between items-center shadow-xl border-b-4 border-slate-600 shrink-0 relative z-10"><div class="flex items-center gap-4"><h3 class="text-3xl md:text-4xl font-black text-yellow-500 flex items-center gap-3 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]"><i class="fas fa-landmark text-yellow-600"></i> 세계 보물 박물관</h3><span class="bg-slate-700 text-slate-300 text-sm font-bold px-3 py-1 rounded-full border border-slate-600">전시실 1관</span></div><button onclick="closeModal('museumModal')" class="text-slate-400 hover:text-red-400 text-4xl transition-colors"><i class="fas fa-times-circle"></i></button></div><div class="relative w-full flex-1 overflow-y-auto p-6 md:p-10 z-10 custom-scrollbar"><p id="emptyMuseumMsg" class="text-slate-400 font-bold w-full text-center text-xl mt-20">아직 전시된 보물이 없습니다.<br><span class="text-slate-500 text-lg mt-2 block">세계를 탐험하며 픽셀 보물들을 수집해 박물관을 채워보세요! 🗺️</span></p><div id="museumGalleryGrid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 md:gap-12 pb-10"></div></div><div class="h-6 bg-red-900/80 border-t-4 border-red-700 w-full shrink-0 relative z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]"></div></div></div>
+
+    <!-- 국기 퀴즈 게임 (반응형 2x2 레이아웃) -->
+    <div id="quizModal" class="fixed inset-0 modal-bg hidden items-center justify-center z-[120] p-4"><div class="bg-white rounded-[2rem] shadow-2xl border-[8px] border-emerald-400 pop-in text-center flex flex-col w-full max-w-2xl max-h-[90vh] relative overflow-hidden"><div class="p-6 relative z-10 flex flex-col h-full overflow-hidden"><div class="flex justify-between items-center mb-4 shrink-0"><h3 class="text-2xl md:text-3xl font-black text-emerald-800 flex items-center gap-2"><span class="text-4xl">🤔</span> 국기 퀴즈!</h3><span class="bg-emerald-600 text-white px-3 py-1 rounded-full text-xs md:text-sm font-bold">정답 시 +20 EXP</span></div><div class="flex-1 flex flex-col items-center justify-start overflow-y-auto w-full gap-4"><div class="w-48 h-32 md:w-56 md:h-36 border-[6px] border-white rounded-2xl overflow-hidden shadow-xl relative bg-gray-100 shrink-0"><img id="quizFlag" src="" alt="퀴즈 국기" class="w-full h-full object-cover"></div><div id="quizOptions" class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full"></div></div><div id="quizFeedbackContainer" class="mt-4 p-2 shrink-0"><p id="quizFeedback" class="text-lg md:text-xl font-black"></p></div><button onclick="closeModal('quizModal')" class="mt-2 text-gray-500 hover:text-red-500 font-bold transition-colors bg-gray-100 px-6 py-2 rounded-full self-center shrink-0">그만하기 🏳️</button></div></div></div>
+
+    <!-- 범용 알림창 -->
+    <div id="alertModal" class="fixed inset-0 modal-bg hidden items-center justify-center z-[200] p-4"><div class="bg-white rounded-[3rem] shadow-2xl border-[8px] border-yellow-400 pop-in text-center p-8 relative overflow-hidden max-w-sm w-full shine-effect"><div class="text-8xl mb-4 float-anim" id="alertIcon">🎉</div><h3 class="text-3xl font-black text-yellow-600 mb-2" id="alertTitle">메세지</h3><p class="text-lg text-gray-700 mb-6 font-bold break-keep" id="alertText">내용</p><button onclick="closeModal('alertModal')" class="bg-gradient-to-r from-yellow-400 to-orange-500 hover:scale-105 text-white px-10 py-3 rounded-full text-2xl shadow-lg transition-transform border-4 border-white font-black w-full">확인!</button></div></div>
+
+    <script>
+        // ==========================================
+        // 0. API 및 캐시(Cache) 설정
+        // ==========================================
+        const apiKey = "AIzaSyBSOodJMe1flg3iNMyspbLhwG8f4mtEsl0";
+        const GOOGLE_CX = "3570e371207eb4ad6";
+        const imageCache = {};
+
+        // ==========================================
+        // 1. 픽셀 아트 및 게임 데이터
+        // ==========================================
+        const pixelArts = {
+            "상자": `<svg viewBox="0 0 8 8" class="pixel-art drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]"><rect width="8" height="8" fill="transparent"/><path d="M1,2 h6 v5 h-6 Z" fill="#8B4513"/><path d="M1,2 h6 v2 h-6 Z" fill="#D2B48C"/><path d="M3,3 h2 v2 h-2 Z" fill="#FFD700"/></svg>`,
+            "보석": `<svg viewBox="0 0 8 8" class="pixel-art drop-shadow-[0_0_8px_rgba(30,144,255,0.8)]"><path d="M3,1 h2 v1 h1 v1 h1 v2 h-1 v1 h-1 v1 h-2 v-1 h-1 v-1 h-1 v-2 h1 v-1 h1 Z" fill="#1E90FF"/><path d="M3,2 h2 v1 h-2 Z" fill="#87CEFA"/></svg>`,
+            "마법봉": `<svg viewBox="0 0 8 8" class="pixel-art drop-shadow-[0_0_8px_rgba(147,112,219,0.8)]"><path d="M1,6 h1 v1 h-1 Z M2,5 h1 v1 h-1 Z M3,4 h1 v1 h-1 Z M4,3 h1 v1 h-1 Z M5,2 h1 v1 h-1 Z M6,1 h1 v1 h-1 Z M6,2 h1 v1 h-1 Z M5,1 h1 v1 h-1 Z" fill="#9370DB"/><rect x="6" y="1" width="1" height="1" fill="#FFD700"/></svg>`,
+            "왕관": `<svg viewBox="0 0 8 8" class="pixel-art drop-shadow-[0_0_10px_rgba(255,215,0,1)]"><path d="M1,5 h6 v2 h-6 Z M1,2 h1 v3 h-1 Z M3,3 h2 v2 h-2 Z M6,2 h1 v3 h-1 Z" fill="#FFD700"/><rect x="2" y="6" width="1" height="1" fill="#FF0000"/><rect x="5" y="6" width="1" height="1" fill="#0000FF"/></svg>`
+        };
+
+        const rarityStyles = {
+            "일반": { border: "border-slate-500", bg: "bg-slate-600", text: "text-slate-200", badge: "bg-slate-500 text-white" },
+            "희귀": { border: "border-blue-400", bg: "bg-blue-600", text: "text-blue-100", badge: "bg-blue-500 text-white" },
+            "영웅": { border: "border-purple-400", bg: "bg-purple-600", text: "text-purple-100", badge: "bg-purple-500 text-white" },
+            "전설": { border: "border-yellow-400", bg: "bg-yellow-600", text: "text-yellow-100", badge: "bg-yellow-500 text-white shadow-[0_0_10px_gold]" }
+        };
+
+        const worldData = {
+            "아시아": [
+                { name: "대한민국", code: "kr", capital: "서울", population: "약 5,100만 명", language: "한국어", area: "약 10만 km²", currency: "원", food: "김치, 불고기", fact: "한글과 K-POP의 나라!", landmark: "경복궁", char: {emoji: "🐯", name: "태권도 호랑이"}, treasure: {id: "t1", name: "고려청자", pixelKey: "상자", rarity: "영웅"} },
+                { name: "일본", code: "jp", capital: "도쿄", population: "약 1억 2,500만 명", language: "일본어", area: "약 37.8만 km²", currency: "엔", food: "초밥, 라멘", fact: "초밥이 맛있고 애니메이션이 많아요.", landmark: "후지산", char: {emoji: "🌸", name: "벚꽃 요정"}, treasure: {id: "t2", name: "벚꽃 부채", pixelKey: "보석", rarity: "희귀"} },
+                { name: "중국", code: "cn", capital: "베이징", population: "약 14억 명", language: "중국어", area: "약 960만 km²", currency: "위안", food: "베이징 오리", fact: "가장 긴 성벽 '만리장성'과 판다가 있어요.", landmark: "만리장성", char: {emoji: "🐼", name: "판다 사부님"}, treasure: null },
+                { name: "인도", code: "in", capital: "뉴델리", population: "약 14억 명", language: "힌디어", area: "약 328만 km²", currency: "루피", food: "카레", fact: "아름다운 '타지마할'이 유명해요.", landmark: "타지마할", char: {emoji: "🐘", name: "코끼리 도사"}, treasure: {id: "t3", name: "요술 램프", pixelKey: "왕관", rarity: "전설"} },
+                { name: "베트남", code: "vn", capital: "하노이", population: "약 9,800만 명", language: "베트남어", area: "약 33만 km²", currency: "동", food: "쌀국수", fact: "오토바이를 타고 다니는 사람이 많아요.", landmark: "하롱베이", char: {emoji: "👒", name: "농라 고양이"}, treasure: null },
+                { name: "몽골", code: "mn", capital: "울란바토르", population: "약 340만 명", language: "몽골어", area: "약 156만 km²", currency: "투그릭", food: "허르헉", fact: "끝없는 초원과 전통 텐트 '게르'가 있어요.", landmark: "테를지 국립공원", char: {emoji: "🐎", name: "초원 기수"}, treasure: {id: "t12", name: "칸의 활", pixelKey: "마법봉", rarity: "영웅"} },
+                { name: "태국", code: "th", capital: "방콕", population: "약 7,100만 명", language: "태국어", area: "약 51만 km²", currency: "바트", food: "똠얌꿍, 팟타이", fact: "코끼리를 사랑하는 미소의 나라예요.", landmark: "왓 아룬", char: {emoji: "🐘", name: "코끼리 친구"}, treasure: {id: "t13", name: "황금 코끼리상", pixelKey: "보석", rarity: "희귀"} },
+                { name: "아랍에미리트", code: "ae", capital: "아부다비", population: "약 1,000만 명", language: "아랍어", area: "약 8만 km²", currency: "디르함", food: "마크부스", fact: "세계에서 가장 높은 건물 '부르즈 할리파'가 있어요.", landmark: "부르즈 할리파", char: {emoji: "🐪", name: "사막 왕자"}, treasure: {id: "t24", name: "황금 낙타상", pixelKey: "보석", rarity: "영웅"} }
+            ],
+            "유럽": [
+                { name: "영국", code: "gb", capital: "런던", population: "약 6,700만 명", language: "영어", area: "약 24만 km²", currency: "파운드", food: "피시 앤 칩스", fact: "빨간 2층 버스와 시계탑 '빅벤'이 있어요.", landmark: "빅벤", char: {emoji: "💂", name: "근위병 곰"}, treasure: {id: "t4", name: "여왕의 티잔", pixelKey: "상자", rarity: "일반"} },
+                { name: "프랑스", code: "fr", capital: "파리", population: "약 6,800만 명", language: "프랑스어", area: "약 64만 km²", currency: "유로", food: "바게트, 마카롱", fact: "유명한 철탑 '에펠탑'과 빵의 나라예요.", landmark: "에펠탑", char: {emoji: "🥖", name: "바게트 고양이"}, treasure: {id: "t5", name: "빛나는 왕관", pixelKey: "왕관", rarity: "영웅"} },
+                { name: "독일", code: "de", capital: "베를린", population: "약 8,300만 명", language: "독일어", area: "약 35만 km²", currency: "유로", food: "소시지", fact: "튼튼한 자동차와 다양한 소시지가 유명해요.", landmark: "노이슈반슈타인 성", char: {emoji: "🥨", name: "프레첼 강아지"}, treasure: null },
+                { name: "이탈리아", code: "it", capital: "로마", population: "약 5,900만 명", language: "이탈리아어", area: "약 30만 km²", currency: "유로", food: "피자, 파스타", fact: "피자의 고향! 신기한 '피사의 사탑'이 있어요.", landmark: "콜로세움", char: {emoji: "🍕", name: "피자 요리사 쥐"}, treasure: {id: "t6", name: "로마 동전", pixelKey: "상자", rarity: "일반"} },
+                { name: "스페인", code: "es", capital: "마드리드", population: "약 4,700만 명", language: "스페인어", area: "약 50만 km²", currency: "유로", food: "빠에야, 츄러스", fact: "정열적인 '플라멩코' 춤이 유명해요.", landmark: "사그라다 파밀리아", char: {emoji: "💃", name: "플라멩코 댄서"}, treasure: {id: "t14", name: "붉은 망토", pixelKey: "상자", rarity: "일반"} },
+                { name: "노르웨이", code: "no", capital: "오슬로", population: "약 550만 명", language: "노르웨이어", area: "약 38만 km²", currency: "크로네", food: "연어 요리", fact: "아름다운 피오르드와 신비한 오로라가 있어요.", landmark: "송네 피오르", char: {emoji: "🏔️", name: "바이킹 전사"}, treasure: {id: "t15", name: "바이킹 투구", pixelKey: "보석", rarity: "희귀"} },
+                { name: "네덜란드", code: "nl", capital: "암스테르담", population: "약 1,800만 명", language: "네덜란드어", area: "약 4만 km²", currency: "유로", food: "스트룹와플, 하링", fact: "아름다운 튤립과 빙글빙글 돌아가는 풍차가 유명해요.", landmark: "잔세스칸스 풍차마을", char: {emoji: "🌷", name: "튤립 요정"}, treasure: {id: "t25", name: "나무 나막신", pixelKey: "상자", rarity: "일반"} }
+            ],
+            "아프리카": [
+                { name: "이집트", code: "eg", capital: "카이로", population: "약 1억 명", language: "아랍어", area: "약 100만 km²", currency: "파운드", food: "코샤리", fact: "거대한 '피라미드'와 '스핑크스'가 있어요.", landmark: "기자 피라미드", char: {emoji: "🐪", name: "사막 낙타"}, treasure: {id: "t7", name: "황금 가면", pixelKey: "왕관", rarity: "전설"} },
+                { name: "케냐", code: "ke", capital: "나이로비", population: "약 5,400만 명", language: "스와힐리어", area: "약 58만 km²", currency: "실링", food: "우갈리", fact: "초원에서 사자, 기린, 코끼리를 볼 수 있어요.", landmark: "마사이마라 국립보호구역", char: {emoji: "🦁", name: "초원 사자대장"}, treasure: null },
+                { name: "남아프리카공화국", code: "za", capital: "프리토리아 등", population: "약 6,000만 명", language: "영어, 줄루어 등", area: "약 122만 km²", currency: "랜드", food: "빌통", fact: "아프리카 맨 아래에 있고 펭귄도 살아요.", landmark: "테이블 마운틴", char: {emoji: "🐧", name: "케이프 펭귄"}, treasure: {id: "t16", name: "다이아몬드", pixelKey: "보석", rarity: "영웅"} },
+                { name: "탄자니아", code: "tz", capital: "도도마", population: "약 6,500만 명", language: "스와힐리어", area: "약 94만 km²", currency: "실링", food: "우갈리", fact: "아프리카 최고봉 '킬리만자로 산'이 있어요.", landmark: "킬리만자로 산", char: {emoji: "🦒", name: "키다리 기린"}, treasure: {id: "t17", name: "눈 결정", pixelKey: "보석", rarity: "희귀"} },
+                { name: "나이지리아", code: "ng", capital: "아부자", population: "약 2억 2,000만 명", language: "영어", area: "약 92만 km²", currency: "나이라", food: "졸로프 라이스", fact: "아프리카에서 인구가 가장 많은 나라예요.", landmark: "주마 록", char: {emoji: "🦅", name: "초록 독수리"}, treasure: {id: "t18", name: "전통 드럼", pixelKey: "상자", rarity: "일반"} }
+            ],
+            "북아메리카": [
+                { name: "미국", code: "us", capital: "워싱턴 D.C.", population: "약 3억 3,000만 명", language: "영어", area: "약 983만 km²", currency: "달러", food: "햄버거", fact: "'자유의 여신상'과 디즈니랜드가 있어요.", landmark: "자유의 여신상", char: {emoji: "🦅", name: "독수리 히어로"}, treasure: {id: "t8", name: "슬레이트", pixelKey: "상자", rarity: "일반"} },
+                { name: "캐나다", code: "ca", capital: "오타와", population: "약 3,800만 명", language: "영어, 불어", area: "약 998만 km²", currency: "달러", food: "메이플 시럽", fact: "단풍이 아름답고 달콤한 메이플 시럽을 만들어요.", landmark: "나이아가라 폭포", char: {emoji: "🍁", name: "단풍잎 비버"}, treasure: null },
+                { name: "멕시코", code: "mx", capital: "멕시코시티", population: "약 1억 2,800만 명", language: "스페인어", area: "약 196만 km²", currency: "페소", food: "타코", fact: "챙 넓은 모자 '솜브레로'를 쓰고 축제를 즐겨요.", landmark: "치첸이트사", char: {emoji: "🌮", name: "타코 선인장"}, treasure: {id: "t9", name: "해골 조각", pixelKey: "보석", rarity: "희귀"} },
+                { name: "쿠바", code: "cu", capital: "아바나", population: "약 1,100만 명", language: "스페인어", area: "약 11만 km²", currency: "페소", food: "로파 비에하", fact: "거리에 올드카가 다니고 신나는 살사 음악이 흘러요.", landmark: "올드 아바나", char: {emoji: "🚗", name: "올드카 드라이버"}, treasure: {id: "t19", name: "마라카스", pixelKey: "보석", rarity: "희귀"} },
+                { name: "자메이카", code: "jm", capital: "킹스턴", population: "약 280만 명", language: "영어", area: "약 1만 km²", currency: "달러", food: "저크 치킨", fact: "레게 음악의 고향이자 달리기 선수가 많아요.", landmark: "블루 마운틴", char: {emoji: "🏃", name: "레게 러너"}, treasure: {id: "t20", name: "육상화", pixelKey: "상자", rarity: "영웅"} }
+            ],
+            "남아메리카": [
+                { name: "브라질", code: "br", capital: "브라질리아", population: "약 2억 1,000만 명", language: "포르투갈어", area: "약 851만 km²", currency: "헤알", food: "슈하스코", fact: "거대한 '아마존' 밀림이 있고 축구를 잘해요.", landmark: "구세주 그리스도상", char: {emoji: "🦜", name: "삼바 앵무새"}, treasure: {id: "t10", name: "카니발 깃털", pixelKey: "보석", rarity: "희귀"} },
+                { name: "아르헨티나", code: "ar", capital: "부에노스아이레스", population: "약 4,500만 명", language: "스페인어", area: "약 278만 km²", currency: "페소", food: "아사도", fact: "정열적인 '탱고' 춤과 맛있는 소고기가 유명해요.", landmark: "이과수 폭포", char: {emoji: "💃", name: "탱고 댄서"}, treasure: null },
+                { name: "콜롬비아", code: "co", capital: "보고타", population: "약 5,200만 명", language: "스페인어", area: "약 114만 km²", currency: "페소", food: "아레파", fact: "세계에서 커피가 가장 맛있는 나라 중 하나예요.", landmark: "소금 대성당", char: {emoji: "☕", name: "커피 농부"}, treasure: {id: "t21", name: "황금 원두", pixelKey: "상자", rarity: "일반"} },
+                { name: "페루", code: "pe", capital: "리마", population: "약 3,400만 명", language: "스페인어", area: "약 128만 km²", currency: "솔", food: "세비체", fact: "잉카 제국의 신비한 도시 '마추픽추'가 있어요.", landmark: "마추픽추", char: {emoji: "🦙", name: "안데스 라마"}, treasure: {id: "t22", name: "마추픽추 태양석", pixelKey: "왕관", rarity: "전설"} },
+                { name: "칠레", code: "cl", capital: "산티아고", population: "약 1,900만 명", language: "스페인어", area: "약 75만 km²", currency: "페소", food: "엠파나다", fact: "세계에서 가장 길쭉한 모양을 가진 나라예요.", landmark: "이스터섬 모아이", char: {emoji: "🗿", name: "모아이 석상"}, treasure: {id: "t23", name: "모아이상", pixelKey: "상자", rarity: "영웅"} }
+            ],
+            "오세아니아": [
+                { name: "호주", code: "au", capital: "캔버라", population: "약 2,500만 명", language: "영어", area: "약 769만 km²", currency: "달러", food: "미트 파이", fact: "아기 주머니가 있는 캥거루와 코알라가 살아요.", landmark: "시드니 오페라 하우스", char: {emoji: "🦘", name: "서퍼 캥거루"}, treasure: {id: "t11", name: "부메랑", pixelKey: "보석", rarity: "희귀"} },
+                { name: "뉴질랜드", code: "nz", capital: "웰링턴", population: "약 500만 명", language: "영어", area: "약 26만 km²", currency: "달러", food: "항이", fact: "날지 못하는 새 '키위'가 살고 양이 아주 많아요.", landmark: "밀포드 사운드", char: {emoji: "🥝", name: "키위새 친구"}, treasure: null }
+            ]
+        };
+        const allCountries = Object.values(worldData).flat();
+
+        // ==========================================
+        // 2. 상태 관리 (State)
+        // ==========================================
+        let state = {
+            level: 1, exp: 0, maxExp: 100,
+            visited: [], treasures: [], activeAvatar: "🧑‍🚀",
+            missions: [
+                { id: 1, desc: "아시아 나라 2곳 방문하기", target: 2, current: 0, type: "visit_asia", rewardExp: 30, done: false },
+                { id: 2, desc: "AI 선생님께 질문하기", target: 1, current: 0, type: "ask_ai", rewardExp: 20, done: false },
+                { id: 3, desc: "국기 퀴즈 1번 맞히기", target: 1, current: 0, type: "quiz", rewardExp: 40, done: false }
+            ]
+        };
+
+        let currentViewingCountry = null;
+        let isQuizProcessing = false;
+
+        // 초기화
+        window.onload = () => {
+            updateHUD();
+            updateMissionsUI();
+            initCharGrid();
+        };
+
+        // ==========================================
+        // 3. 사진 불러오기 (구글 커스텀 서치 & 위키백과 폴백)
+        // ==========================================
+        async function fetchLandmarkImage(countryName, landmarkName) {
+            const imgEl = document.getElementById('modalLandmarkImg');
+            const loadingEl = document.getElementById('landmarkLoading');
+            const nameEl = document.getElementById('modalLandmarkName');
+
+            nameEl.innerText = landmarkName;
+
+            // 나라 이름과 랜드마크 이름으로 고유한 '열쇠(Key)' 생성
+            const cacheKey = `${countryName}_${landmarkName}`;
+
+            // 🌟 캐시 확인: 예전에 검색해서 저장해둔 사진이 있다면 즉시 사용!
+            if (imageCache[cacheKey]) {
+                imgEl.src = imageCache[cacheKey];
+                loadingEl.classList.add('hidden');
+                imgEl.classList.remove('hidden', 'opacity-0');
+                return;
+            }
+
+            imgEl.classList.add('hidden', 'opacity-0');
+            imgEl.src = '';
+            loadingEl.classList.remove('hidden');
+
+            try {
+                // 1. 구글 API 검색
+                if (GOOGLE_CX && apiKey) {
+                    const query = encodeURIComponent(countryName + " " + landmarkName);
+                    const url = `https://customsearch.googleapis.com/customsearch/v1?q=${query}&cx=${GOOGLE_CX}&key=${apiKey}&searchType=image&num=1`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+
+                    if (data.items && data.items.length > 0) {
+                        imageCache[cacheKey] = data.items[0].link;
+                        imgEl.src = data.items[0].link;
+                        return;
+                    }
+                }
+
+                // 2. 위키백과 폴백 (구글 검색 실패 시)
+                const wikiUrl = `https://ko.wikipedia.org/w/api.php?action=query&prop=pageimages&format=json&piprop=thumbnail&pithumbsize=800&titles=${encodeURIComponent(landmarkName)}&origin=*`;
+                const wikiRes = await fetch(wikiUrl);
+                const wikiData = await wikiRes.json();
+                const pages = wikiData.query.pages;
+                const pageId = Object.keys(pages)[0];
+
+                if (pageId !== "-1" && pages[pageId].thumbnail) {
+                    imageCache[cacheKey] = pages[pageId].thumbnail.source;
+                    imgEl.src = pages[pageId].thumbnail.source;
+                } else {
+                    const fallbackUrl = `https://images.unsplash.com/photo-1488085061387-422e29b40080?w=800&q=80`;
+                    imageCache[cacheKey] = fallbackUrl;
+                    imgEl.src = fallbackUrl;
+                }
+            } catch (error) {
+                console.error("이미지 로드 실패:", error);
+                const errorUrl = `https://images.unsplash.com/photo-1488085061387-422e29b40080?w=800&q=80`;
+                imageCache[cacheKey] = errorUrl;
+                imgEl.src = errorUrl;
+            }
+        }
+
+        // ==========================================
+        // 4. 코어 시스템 (경험치, 지도 탐험 등)
+        // ==========================================
+        function getTitleByLevel(lv) {
+            if(lv >= 30) return "지구 마스터";
+            if(lv >= 20) return "세계 박사";
+            if(lv >= 10) return "대륙 정복자";
+            if(lv >= 5) return "세계 여행자";
+            return "초보 탐험가";
+        }
+
+        function gainExp(amount) {
+            state.exp += amount;
+            showFloatingText(`+${amount} EXP`);
+
+            while(state.exp >= state.maxExp) {
+                state.level++;
+                state.exp -= state.maxExp;
+                state.maxExp = Math.floor(state.maxExp * 1.5);
+                triggerConfetti(100);
+                setTimeout(() => showAlert("LEVEL UP!", `축하합니다!<br><strong>Lv.${state.level} ${getTitleByLevel(state.level)}</strong>(이)가 되었습니다!`, "🌟"), 500);
+            }
+            updateHUD();
+        }
+
+        function updateHUD() {
+            document.getElementById('hudLevel').innerText = state.level;
+            document.getElementById('hudTitle').innerText = getTitleByLevel(state.level);
+            const expPercent = Math.min(100, Math.floor((state.exp / state.maxExp) * 100));
+            document.getElementById('hudExpBar').style.width = `${expPercent}%`;
+            document.getElementById('hudExpText').innerText = `${state.exp} / ${state.maxExp}`;
+        }
+
+        function progressMission(type) {
+            state.missions.forEach(m => {
+                if(!m.done && m.type === type) {
+                    m.current++;
+                    if(m.current >= m.target) {
+                        m.done = true;
+                        gainExp(m.rewardExp);
+                        triggerConfetti(30);
+                        document.getElementById('navQuestDot').classList.remove('hidden');
+                    }
+                }
+            });
+            updateMissionsUI();
+        }
+
+        function showContinent(name) {
+            const listDiv = document.getElementById('countryList');
+            document.getElementById('continentTitle').innerHTML = `${name} <span class="text-xl font-medium bg-blue-700 px-3 py-1 rounded-full ml-2">${worldData[name].length}개국</span>`;
+            listDiv.innerHTML = '';
+
+            worldData[name].forEach(c => {
+                const isVis = state.visited.includes(c.code);
+                const btn = document.createElement('button');
+                btn.className = `flex flex-col items-center bg-white border-4 ${isVis ? 'border-yellow-400' : 'border-blue-200'} hover:border-blue-400 p-4 rounded-3xl shadow transition-all transform hover:-translate-y-1 relative group`;
+                btn.onclick = () => handleCountryClick(c, name);
+
+                btn.innerHTML = `
+                    ${isVis ? '<div class="absolute top-2 right-2 text-yellow-500 text-2xl drop-shadow-sm"><i class="fas fa-stamp"></i></div>' : ''}
+                    <div class="w-20 h-14 mb-2 rounded-xl overflow-hidden border-2 border-gray-100 shadow-sm"><img src="https://flagcdn.com/w80/${c.code}.png" class="w-full h-full object-cover"></div>
+                    <span class="text-xl font-bold text-gray-800">${c.name}</span>
+                `;
+                listDiv.appendChild(btn);
+            });
+            openModal('continentModal');
+        }
+
+        function handleCountryClick(country, continentName) {
+            closeModal('continentModal');
+            currentViewingCountry = country;
+
+            if(!state.visited.includes(country.code)) {
+                state.visited.push(country.code);
+
+                const modal = document.getElementById('newVisitModal');
+                const stampWrap = document.getElementById('visitStampWrap');
+                document.getElementById('visitStampImg').src = `https://flagcdn.com/w160/${country.code}.png`;
+
+                modal.style.display = 'flex';
+                stampWrap.classList.remove('stamp-bang');
+                void stampWrap.offsetWidth;
+                stampWrap.classList.add('stamp-bang');
+                triggerConfetti(50);
+
+                gainExp(10);
+                if(continentName === '아시아') progressMission('visit_asia');
+                updateCharGrid();
+
+                if(country.treasure && Math.random() < 0.6) {
+                    if(!state.treasures.includes(country.treasure.id)) {
+                        state.treasures.push(country.treasure.id);
+                        setTimeout(() => {
+                            const pixelHtml = pixelArts[country.treasure.pixelKey] || pixelArts["상자"];
+                            showAlert("💎 보물 발견!", `이 나라에 숨겨진 <strong>[${country.treasure.rarity}] ${country.treasure.name}</strong>을(를) 찾았습니다!<br>박물관 전시실에서 확인해보세요.`, "📦");
+                            document.getElementById('alertIcon').innerHTML = `<div class="w-24 h-24 mx-auto">${pixelHtml}</div>`;
+                        }, 2000);
+                    }
+                }
+            } else {
+                openCountryCard();
+            }
+        }
+
+        function closeVisitAndOpenCountry() {
+            closeModal('newVisitModal');
+            openCountryCard();
+        }
+
+        // ==========================================
+        // 5. 나라 상세 카드 & AI 챗봇
+        // ==========================================
+        function openCountryCard() {
+            const c = currentViewingCountry;
+            if(!c) return;
+
+            document.getElementById('modalFlag').src = `https://flagcdn.com/w320/${c.code}.png`;
+            document.getElementById('modalName').innerText = c.name;
+            document.getElementById('modalCapital').innerText = c.capital;
+            document.getElementById('modalPopulation').innerText = c.population;
+            document.getElementById('modalLanguage').innerText = c.language;
+            document.getElementById('modalArea').innerText = c.area;
+            document.getElementById('modalCurrency').innerText = c.currency;
+            document.getElementById('modalFood').innerText = c.food;
+            document.getElementById('modalFact').innerText = c.fact;
+
+            document.getElementById('modalCharEmoji').innerText = c.char.emoji;
+            document.getElementById('modalCharName').innerText = c.char.name;
+
+            // 챗봇 초기화
+            document.getElementById('chatTitle').innerText = `${c.name} 선생님에게 물어보기`;
+            const chatBox = document.getElementById('modalChatMessages');
+            chatBox.innerHTML = '';
+            addChatBubble('bot', `안녕! 나는 ${c.char.emoji} ${c.char.name}(이)야. ${c.name}에 대해 궁금한 걸 물어봐!`);
+            document.getElementById('modalChatInput').value = '';
+
+            fetchLandmarkImage(c.name, c.landmark);
+            openModal('countryModal');
+        }
+
+        function addChatBubble(role, text) {
+            const chatBox = document.getElementById('modalChatMessages');
+            const bubble = document.createElement('div');
+            if(role === 'user') {
+                bubble.className = 'self-end bg-indigo-500 text-white px-3 py-2 rounded-2xl rounded-br-none max-w-[80%] shadow font-bold break-keep';
+            } else {
+                bubble.className = 'self-start bg-white text-gray-800 px-3 py-2 rounded-2xl rounded-bl-none max-w-[80%] shadow border border-indigo-100 font-bold break-keep';
+            }
+            bubble.innerText = text;
+            chatBox.appendChild(bubble);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return bubble;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('modalChatInput');
+            const text = input.value.trim();
+            if(!text || !currentViewingCountry) return;
+
+            const c = currentViewingCountry;
+            input.value = '';
+            addChatBubble('user', text);
+            gainExp(5);
+            progressMission('ask_ai');
+
+            const typingBubble = addChatBubble('bot', '음... 생각 중이야! 🤔');
+
+            try {
+                const prompt = `너는 초등학생에게 세계 여러 나라를 알려주는 친절하고 재미있는 선생님이야. 지금 배우는 나라는 '${c.name}'(수도: ${c.capital}, 언어: ${c.language}, 대표 음식: ${c.food})이야. 초등학생 눈높이에 맞춰 쉬운 한국어로 2~3문장으로 짧고 재미있게 대답해줘. 이모지도 한두 개 써줘. 학생의 질문: ${text}`;
+
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const data = await res.json();
+                const answer = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0].text;
+
+                typingBubble.innerText = answer ? answer.trim() : `${c.fact} 더 궁금한 게 있으면 또 물어봐! 😊`;
+            } catch (error) {
+                console.error("챗봇 응답 실패:", error);
+                typingBubble.innerText = `${c.fact} (지금은 연결이 어려워서 내가 아는 것만 알려줬어! 😅)`;
+            }
+            document.getElementById('modalChatMessages').scrollTop = 99999;
+        }
+
+        // ==========================================
+        // 6. 일일 퀘스트 UI
+        // ==========================================
+        function openMissions() {
+            document.getElementById('navQuestDot').classList.add('hidden');
+            updateMissionsUI();
+            openModal('missionsModal');
+        }
+
+        function updateMissionsUI() {
+            const container = document.getElementById('missionListContainer');
+            if(container) {
+                container.innerHTML = '';
+                state.missions.forEach(m => {
+                    const percent = Math.min(100, Math.floor((m.current / m.target) * 100));
+                    const card = document.createElement('div');
+                    card.className = `bg-white rounded-2xl p-4 border-2 ${m.done ? 'border-green-400 bg-green-50' : 'border-orange-200'} shadow-sm`;
+                    card.innerHTML = `
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-black text-gray-800 text-sm md:text-base flex items-center gap-2">${m.done ? '✅' : '🎯'} ${m.desc}</span>
+                            <span class="text-xs font-black ${m.done ? 'text-green-600' : 'text-orange-500'} bg-white px-2 py-1 rounded-full border ${m.done ? 'border-green-300' : 'border-orange-200'} whitespace-nowrap">+${m.rewardExp} EXP</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden border border-gray-300 relative">
+                            <div class="${m.done ? 'bg-green-400' : 'bg-orange-400'} h-full transition-all duration-500" style="width:${percent}%"></div>
+                        </div>
+                        <p class="text-right text-xs font-bold text-gray-500 mt-1">${Math.min(m.current, m.target)} / ${m.target}</p>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+
+            // 메인 배너 업데이트
+            const nextMission = state.missions.find(m => !m.done);
+            const descEl = document.getElementById('mainQuestDesc');
+            const statusEl = document.getElementById('mainQuestStatus');
+            if(nextMission) {
+                descEl.innerText = nextMission.desc;
+                statusEl.innerText = '진행 중';
+                statusEl.className = 'hidden md:flex bg-gray-200 text-gray-600 px-4 py-2 rounded-2xl font-black border-2 border-gray-300';
+            } else {
+                descEl.innerText = '오늘의 미션을 모두 완료했어요! 🎉';
+                statusEl.innerText = '완료!';
+                statusEl.className = 'hidden md:flex bg-green-400 text-white px-4 py-2 rounded-2xl font-black border-2 border-green-500';
+            }
+        }
+
+        // ==========================================
+        // 7. 캐릭터 도감
+        // ==========================================
+        function openCharacters() {
+            updateCharGrid();
+            openModal('charsModal');
+        }
+
+        function initCharGrid() {
+            updateCharGrid();
+        }
+
+        function updateCharGrid() {
+            const grid = document.getElementById('charGrid');
+            if(!grid) return;
+            grid.innerHTML = '';
+            let foundCount = 0;
+
+            allCountries.forEach(c => {
+                const isVis = state.visited.includes(c.code);
+                if(isVis) foundCount++;
+
+                const card = document.createElement('div');
+                card.className = `flex flex-col items-center p-3 rounded-2xl border-4 ${isVis ? 'bg-white border-pink-300 shadow-md' : 'bg-gray-100 border-gray-200'} transition-all`;
+                card.innerHTML = isVis ? `
+                    <span class="text-4xl md:text-5xl mb-1 drop-shadow-sm">${c.char.emoji}</span>
+                    <span class="text-xs md:text-sm font-black text-gray-800 text-center break-keep">${c.char.name}</span>
+                    <span class="text-[10px] font-bold text-pink-500 mt-1 bg-pink-50 px-2 py-0.5 rounded-full border border-pink-200">${c.name}</span>
+                ` : `
+                    <span class="text-4xl md:text-5xl mb-1 grayscale opacity-40">❓</span>
+                    <span class="text-xs md:text-sm font-black text-gray-400 text-center">???</span>
+                    <span class="text-[10px] font-bold text-gray-400 mt-1 bg-gray-200 px-2 py-0.5 rounded-full">미발견</span>
+                `;
+                grid.appendChild(card);
+            });
+
+            document.getElementById('charProgress').innerText = `${Math.round((foundCount / allCountries.length) * 100)}%`;
+        }
+
+        // ==========================================
+        // 8. 보물 박물관
+        // ==========================================
+        function openMuseum() {
+            const grid = document.getElementById('museumGalleryGrid');
+            const emptyMsg = document.getElementById('emptyMuseumMsg');
+            grid.innerHTML = '';
+
+            const ownedCountries = allCountries.filter(c => c.treasure && state.treasures.includes(c.treasure.id));
+            emptyMsg.style.display = ownedCountries.length > 0 ? 'none' : 'block';
+
+            ownedCountries.forEach(c => {
+                const t = c.treasure;
+                const style = rarityStyles[t.rarity] || rarityStyles["일반"];
+                const pixelHtml = pixelArts[t.pixelKey] || pixelArts["상자"];
+
+                const item = document.createElement('div');
+                item.className = 'flex flex-col items-center group';
+                item.innerHTML = `
+                    <div class="relative w-full aspect-square flex items-end justify-center museum-spotlight">
+                        <div class="w-24 h-24 md:w-28 md:h-28 mb-2 float-anim group-hover:scale-110 transition-transform">${pixelHtml}</div>
+                    </div>
+                    <div class="w-full bg-slate-800 border-4 ${style.border} rounded-xl p-3 text-center shadow-lg relative -mt-1">
+                        <span class="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-black px-2 py-0.5 rounded-full ${style.badge} whitespace-nowrap">${t.rarity}</span>
+                        <p class="font-pixel text-sm md:text-base ${style.text} font-black mt-1">${t.name}</p>
+                        <div class="flex items-center justify-center gap-1 mt-1">
+                            <img src="https://flagcdn.com/w20/${c.code}.png" class="w-4 h-3 rounded-sm border border-slate-600">
+                            <span class="text-[10px] text-slate-400 font-bold">${c.name}</span>
+                        </div>
+                    </div>
+                    <div class="w-3/4 h-3 bg-gradient-to-b from-amber-800 to-amber-950 rounded-b-lg shadow-inner"></div>
+                `;
+                grid.appendChild(item);
+            });
+            openModal('museumModal');
+        }
+
+        // ==========================================
+        // 9. 국기 퀴즈 게임
+        // ==========================================
+        function startQuiz() {
+            isQuizProcessing = false;
+            nextQuizQuestion();
+            openModal('quizModal');
+        }
+
+        function nextQuizQuestion() {
+            isQuizProcessing = false;
+            document.getElementById('quizFeedback').innerText = '';
+
+            const answer = allCountries[Math.floor(Math.random() * allCountries.length)];
+            const options = [answer];
+            while(options.length < 4) {
+                const candidate = allCountries[Math.floor(Math.random() * allCountries.length)];
+                if(!options.includes(candidate)) options.push(candidate);
+            }
+            options.sort(() => Math.random() - 0.5);
+
+            document.getElementById('quizFlag').src = `https://flagcdn.com/w320/${answer.code}.png`;
+
+            const optionsDiv = document.getElementById('quizOptions');
+            optionsDiv.innerHTML = '';
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'bg-emerald-50 hover:bg-emerald-100 border-4 border-emerald-200 hover:border-emerald-400 text-emerald-900 font-black text-lg md:text-xl py-3 px-4 rounded-2xl shadow transition-all transform hover:-translate-y-1';
+                btn.innerText = opt.name;
+                btn.onclick = () => checkQuizAnswer(opt, answer, btn);
+                optionsDiv.appendChild(btn);
+            });
+        }
+
+        function checkQuizAnswer(selected, answer, btn) {
+            if(isQuizProcessing) return;
+            const feedback = document.getElementById('quizFeedback');
+
+            if(selected.code === answer.code) {
+                isQuizProcessing = true;
+                feedback.innerText = '🎉 정답입니다! 최고예요!';
+                feedback.className = 'text-lg md:text-xl font-black text-emerald-600';
+                btn.className = 'bg-emerald-500 border-4 border-emerald-600 text-white font-black text-lg md:text-xl py-3 px-4 rounded-2xl shadow-lg';
+                gainExp(20);
+                progressMission('quiz');
+                triggerConfetti(40);
+                setTimeout(() => nextQuizQuestion(), 1500);
+            } else {
+                feedback.innerText = `😅 아쉬워요! 다시 생각해 보세요.`;
+                feedback.className = 'text-lg md:text-xl font-black text-red-500';
+                btn.className = 'bg-red-100 border-4 border-red-300 text-red-400 font-black text-lg md:text-xl py-3 px-4 rounded-2xl shadow line-through';
+                btn.disabled = true;
+            }
+        }
+
+        // ==========================================
+        // 10. 공용 유틸리티 (모달, 알림, 효과)
+        // ==========================================
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            modal.style.display = 'none';
+            modal.classList.add('hidden');
+        }
+
+        function showAlert(title, text, icon = '🎉') {
+            document.getElementById('alertTitle').innerText = title;
+            document.getElementById('alertText').innerHTML = text;
+            document.getElementById('alertIcon').innerHTML = icon;
+            openModal('alertModal');
+        }
+
+        function showFloatingText(text) {
+            const el = document.createElement('div');
+            el.className = 'floating-text';
+            el.innerText = text;
+            el.style.left = `${window.innerWidth / 2 - 60 + (Math.random() * 120 - 60)}px`;
+            el.style.top = `${window.innerHeight / 2 - 100}px`;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 1500);
+        }
+
+        function triggerConfetti(count = 50) {
+            if(typeof confetti === 'function') {
+                confetti({ particleCount: count, spread: 90, origin: { y: 0.6 } });
+            }
+        }
+    </script>
+</body>
+</html>
