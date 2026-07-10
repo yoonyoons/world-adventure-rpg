@@ -666,7 +666,8 @@
             try {
                 const prompt = `너는 초등학생에게 세계 여러 나라를 알려주는 친절하고 재미있는 선생님이야. 지금 배우는 나라는 '${c.name}'(수도: ${c.capital}, 언어: ${c.language}, 대표 음식: ${c.food})이야. 초등학생 눈높이에 맞춰 쉬운 한국어로 2~3문장으로 짧고 재미있게 대답해줘. 이모지도 한두 개 써줘. 학생의 질문: ${text}`;
 
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+                // gemini-flash-lite-latest: 항상 최신 경량 모델을 가리키는 별칭 (응답 1~2초, 어린이 대화에 충분)
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${GEMINI_API_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     // 키의 웹사이트 제한(https://yoonyoons.github.io/*)이 통과되도록 전체 주소를 리퍼러로 전송
