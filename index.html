@@ -274,11 +274,13 @@
     <script>
         // ==========================================
         // 0. API 및 캐시(Cache) 설정
-        // ⚠️ 기존 키는 유출 감지로 구글이 차단함 — 새 키 발급 후 아래에 교체하세요.
-        //    새 키에는 반드시 [웹사이트 제한: https://yoonyoons.github.io/*]을 걸어야
-        //    공개 저장소에 올라가도 차단되지 않습니다.
+        // ⚠️ 구글 정책상 'Gemini API' 제한 키는 다른 API와 결합할 수 없어 키를 2개로 분리함.
+        //    두 키 모두 [웹사이트 제한: https://yoonyoons.github.io/*] 필수
+        //    - GEMINI_API_KEY : API 제한사항 = Gemini API (챗봇용)
+        //    - SEARCH_API_KEY : API 제한사항 = Custom Search API (랜드마크 사진 검색용)
         // ==========================================
-        const apiKey = "여기에_새_API_키를_넣으세요";
+        const GEMINI_API_KEY = "여기에_Gemini용_새_키를_넣으세요";
+        const SEARCH_API_KEY = "여기에_검색용_새_키를_넣으세요";
         const GOOGLE_CX = "3570e371207eb4ad6";
         const imageCache = {};
 
@@ -402,9 +404,9 @@
 
             // 1순위. 구글 맞춤 검색(CSE) 이미지 — 상위 5장 + 구글 썸네일 예비
             try {
-                if (GOOGLE_CX && apiKey) {
+                if (GOOGLE_CX && SEARCH_API_KEY && !SEARCH_API_KEY.startsWith("여기에")) {
                     const query = encodeURIComponent(`${countryName} ${landmarkName}`);
-                    const url = `https://customsearch.googleapis.com/customsearch/v1?q=${query}&cx=${GOOGLE_CX}&key=${apiKey}&searchType=image&num=5&safe=active&imgSize=large`;
+                    const url = `https://customsearch.googleapis.com/customsearch/v1?q=${query}&cx=${GOOGLE_CX}&key=${SEARCH_API_KEY}&searchType=image&num=5&safe=active&imgSize=large`;
                     const res = await fetch(url);
                     const data = await res.json();
                     if (data.items && data.items.length > 0) {
@@ -654,7 +656,7 @@
             try {
                 const prompt = `너는 초등학생에게 세계 여러 나라를 알려주는 친절하고 재미있는 선생님이야. 지금 배우는 나라는 '${c.name}'(수도: ${c.capital}, 언어: ${c.language}, 대표 음식: ${c.food})이야. 초등학생 눈높이에 맞춰 쉬운 한국어로 2~3문장으로 짧고 재미있게 대답해줘. 이모지도 한두 개 써줘. 학생의 질문: ${text}`;
 
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
