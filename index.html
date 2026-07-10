@@ -233,7 +233,7 @@
                                 <span class="text-xs font-bold">사진을 불러오는 중...</span>
                             </div>
                             <!-- 실제 이미지 -->
-                            <img id="modalLandmarkImg" src="" class="w-full h-full object-cover hidden transition-opacity duration-500 opacity-0 group-hover:scale-105" onload="this.classList.remove('hidden', 'opacity-0'); document.getElementById('landmarkLoading').classList.add('hidden');">
+                            <img id="modalLandmarkImg" src="" referrerpolicy="no-referrer" class="w-full h-full object-cover hidden transition-opacity duration-500 opacity-0 group-hover:scale-105" onload="this.classList.remove('hidden', 'opacity-0'); document.getElementById('landmarkLoading').classList.add('hidden');">
                         </div>
                     </div>
                 </div>
@@ -274,8 +274,11 @@
     <script>
         // ==========================================
         // 0. API 및 캐시(Cache) 설정
+        // ⚠️ 기존 키는 유출 감지로 구글이 차단함 — 새 키 발급 후 아래에 교체하세요.
+        //    새 키에는 반드시 [웹사이트 제한: https://yoonyoons.github.io/*]을 걸어야
+        //    공개 저장소에 올라가도 차단되지 않습니다.
         // ==========================================
-        const apiKey = "AIzaSyBSOodJMe1flg3iNMyspbLhwG8f4mtEsl0";
+        const apiKey = "여기에_새_API_키를_넣으세요";
         const GOOGLE_CX = "3570e371207eb4ad6";
         const imageCache = {};
 
@@ -370,6 +373,8 @@
         // ==========================================
         // 3. 사진 불러오기 (구글 커스텀 서치 & 위키백과 폴백)
         // ==========================================
+        let currentImageRequest = null; // 모달을 빠르게 전환할 때 이전 요청이 화면을 덮어쓰지 않도록 추적
+
         async function fetchLandmarkImage(countryName, landmarkName) {
             const imgEl = document.getElementById('modalLandmarkImg');
             const loadingEl = document.getElementById('landmarkLoading');
@@ -379,55 +384,103 @@
 
             // 나라 이름과 랜드마크 이름으로 고유한 '열쇠(Key)' 생성
             const cacheKey = `${countryName}_${landmarkName}`;
-
-            // 🌟 캐시 확인: 예전에 검색해서 저장해둔 사진이 있다면 즉시 사용!
-            if (imageCache[cacheKey]) {
-                imgEl.src = imageCache[cacheKey];
-                loadingEl.classList.add('hidden');
-                imgEl.classList.remove('hidden', 'opacity-0');
-                return;
-            }
+            currentImageRequest = cacheKey;
 
             imgEl.classList.add('hidden', 'opacity-0');
             imgEl.src = '';
+            loadingEl.innerHTML = `<i class="fas fa-camera fa-spin mb-2 text-2xl"></i><span class="text-xs font-bold">사진을 불러오는 중...</span>`;
             loadingEl.classList.remove('hidden');
 
+            // 🌟 캐시 확인: 이번 시간에 성공했던 사진이 있다면 즉시 사용!
+            if (imageCache[cacheKey]) {
+                imgEl.src = imageCache[cacheKey];
+                return;
+            }
+
+            // 후보 사진 URL을 정확도 순서대로 수집
+            const candidates = [];
+
+            // 1순위. 구글 맞춤 검색(CSE) 이미지 — 상위 5장 + 구글 썸네일 예비
             try {
-                // 1. 구글 API 검색
                 if (GOOGLE_CX && apiKey) {
-                    const query = encodeURIComponent(countryName + " " + landmarkName);
-                    const url = `https://customsearch.googleapis.com/customsearch/v1?q=${query}&cx=${GOOGLE_CX}&key=${apiKey}&searchType=image&num=1`;
+                    const query = encodeURIComponent(`${countryName} ${landmarkName}`);
+                    const url = `https://customsearch.googleapis.com/customsearch/v1?q=${query}&cx=${GOOGLE_CX}&key=${apiKey}&searchType=image&num=5&safe=active&imgSize=large`;
                     const res = await fetch(url);
                     const data = await res.json();
-
                     if (data.items && data.items.length > 0) {
-                        imageCache[cacheKey] = data.items[0].link;
-                        imgEl.src = data.items[0].link;
-                        return;
+                        // 원본 이미지를 먼저 시도하고, 핫링크가 막힌 경우를 대비해 구글 썸네일(gstatic)을 예비로 추가
+                        data.items.forEach(item => { if (item.link) candidates.push(item.link); });
+                        data.items.forEach(item => { if (item.image && item.image.thumbnailLink) candidates.push(item.image.thumbnailLink); });
+                    } else if (data.error) {
+                        console.warn("구글 이미지 검색 오류:", data.error.message);
                     }
                 }
+            } catch (e) { console.warn("구글 이미지 검색 실패:", e); }
 
-                // 2. 위키백과 폴백 (구글 검색 실패 시)
-                const wikiUrl = `https://ko.wikipedia.org/w/api.php?action=query&prop=pageimages&format=json&piprop=thumbnail&pithumbsize=800&titles=${encodeURIComponent(landmarkName)}&origin=*`;
-                const wikiRes = await fetch(wikiUrl);
-                const wikiData = await wikiRes.json();
-                const pages = wikiData.query.pages;
-                const pageId = Object.keys(pages)[0];
+            // 2순위. 위키백과 문서 제목 직접 조회
+            const directThumb = await wikiThumbnail(landmarkName);
+            if (directThumb) candidates.push(directThumb);
 
-                if (pageId !== "-1" && pages[pageId].thumbnail) {
-                    imageCache[cacheKey] = pages[pageId].thumbnail.source;
-                    imgEl.src = pages[pageId].thumbnail.source;
-                } else {
-                    const fallbackUrl = `https://images.unsplash.com/photo-1488085061387-422e29b40080?w=800&q=80`;
-                    imageCache[cacheKey] = fallbackUrl;
-                    imgEl.src = fallbackUrl;
+            // 3순위. 위키백과 검색으로 가장 비슷한 문서의 대표 사진 찾기 (나라 이름을 붙여 정확도 향상)
+            const searchedThumb = await wikiSearchThumbnail(`${landmarkName} ${countryName}`) || await wikiSearchThumbnail(landmarkName);
+            if (searchedThumb) candidates.push(searchedThumb);
+
+            // 후보들을 실제로 로딩해 보고, 성공하는 첫 번째 사진만 사용
+            for (const url of candidates) {
+                if (currentImageRequest !== cacheKey) return; // 사용자가 다른 나라로 넘어감
+                const ok = await testImageLoad(url);
+                if (ok) {
+                    imageCache[cacheKey] = url; // 실제 로딩에 성공한 사진만 캐시에 저장
+                    if (currentImageRequest === cacheKey) imgEl.src = url;
+                    return;
                 }
-            } catch (error) {
-                console.error("이미지 로드 실패:", error);
-                const errorUrl = `https://images.unsplash.com/photo-1488085061387-422e29b40080?w=800&q=80`;
-                imageCache[cacheKey] = errorUrl;
-                imgEl.src = errorUrl;
             }
+
+            // 모든 후보 실패: 엉뚱한 사진 대신 안내 메시지 표시
+            if (currentImageRequest === cacheKey) {
+                loadingEl.innerHTML = `<i class="fas fa-image mb-2 text-2xl"></i><span class="text-xs font-bold">사진을 찾지 못했어요 😢</span>`;
+            }
+        }
+
+        // 위키백과: 문서 제목으로 대표 사진 조회
+        async function wikiThumbnail(title) {
+            try {
+                const url = `https://ko.wikipedia.org/w/api.php?action=query&prop=pageimages&format=json&piprop=thumbnail&pithumbsize=800&titles=${encodeURIComponent(title)}&origin=*`;
+                const res = await fetch(url);
+                const data = await res.json();
+                const pages = data.query.pages;
+                const pageId = Object.keys(pages)[0];
+                if (pageId !== "-1" && pages[pageId].thumbnail) return pages[pageId].thumbnail.source;
+            } catch (e) {}
+            return null;
+        }
+
+        // 위키백과: 검색으로 가장 관련 있는 문서의 대표 사진 조회
+        async function wikiSearchThumbnail(query) {
+            try {
+                const url = `https://ko.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=3&prop=pageimages&piprop=thumbnail&pithumbsize=800&format=json&origin=*`;
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.query && data.query.pages) {
+                    const pages = Object.values(data.query.pages).sort((a, b) => a.index - b.index);
+                    for (const p of pages) {
+                        if (p.thumbnail) return p.thumbnail.source;
+                    }
+                }
+            } catch (e) {}
+            return null;
+        }
+
+        // 이미지 URL이 실제로 로딩되는지 검사 (핫링크 차단·깨진 링크·너무 작은 사진 걸러내기)
+        function testImageLoad(url) {
+            return new Promise(resolve => {
+                const img = new Image();
+                const timer = setTimeout(() => { img.src = ''; resolve(false); }, 6000);
+                img.onload = () => { clearTimeout(timer); resolve(img.naturalWidth >= 150); };
+                img.onerror = () => { clearTimeout(timer); resolve(false); };
+                img.referrerPolicy = 'no-referrer';
+                img.src = url;
+            });
         }
 
         // ==========================================
@@ -601,7 +654,7 @@
             try {
                 const prompt = `너는 초등학생에게 세계 여러 나라를 알려주는 친절하고 재미있는 선생님이야. 지금 배우는 나라는 '${c.name}'(수도: ${c.capital}, 언어: ${c.language}, 대표 음식: ${c.food})이야. 초등학생 눈높이에 맞춰 쉬운 한국어로 2~3문장으로 짧고 재미있게 대답해줘. 이모지도 한두 개 써줘. 학생의 질문: ${text}`;
 
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
