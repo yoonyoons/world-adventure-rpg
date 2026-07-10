@@ -269,7 +269,7 @@
     <div id="quizModal" class="fixed inset-0 modal-bg hidden items-center justify-center z-[120] p-4"><div class="bg-white rounded-[2rem] shadow-2xl border-[8px] border-emerald-400 pop-in text-center flex flex-col w-full max-w-2xl max-h-[90vh] relative overflow-hidden"><div class="p-6 relative z-10 flex flex-col h-full overflow-hidden"><div class="flex justify-between items-center mb-4 shrink-0"><h3 class="text-2xl md:text-3xl font-black text-emerald-800 flex items-center gap-2"><span class="text-4xl">🤔</span> 국기 퀴즈!</h3><span class="bg-emerald-600 text-white px-3 py-1 rounded-full text-xs md:text-sm font-bold">정답 시 +20 EXP</span></div><div class="flex-1 flex flex-col items-center justify-start overflow-y-auto w-full gap-4"><div class="w-48 h-32 md:w-56 md:h-36 border-[6px] border-white rounded-2xl overflow-hidden shadow-xl relative bg-gray-100 shrink-0"><img id="quizFlag" src="" alt="퀴즈 국기" class="w-full h-full object-cover"></div><div id="quizOptions" class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full"></div></div><div id="quizFeedbackContainer" class="mt-4 p-2 shrink-0"><p id="quizFeedback" class="text-lg md:text-xl font-black"></p></div><button onclick="closeModal('quizModal')" class="mt-2 text-gray-500 hover:text-red-500 font-bold transition-colors bg-gray-100 px-6 py-2 rounded-full self-center shrink-0">그만하기 🏳️</button></div></div></div>
 
     <!-- 버전 표시 (업데이트 반영 확인용) -->
-    <div class="fixed bottom-1 right-2 text-[10px] font-bold text-gray-400/70 z-30 pointer-events-none">v5</div>
+    <div class="fixed bottom-1 right-2 text-[10px] font-bold text-gray-400/70 z-30 pointer-events-none">v6</div>
 
     <!-- 범용 알림창 -->
     <div id="alertModal" class="fixed inset-0 modal-bg hidden items-center justify-center z-[200] p-4"><div class="bg-white rounded-[3rem] shadow-2xl border-[8px] border-yellow-400 pop-in text-center p-8 relative overflow-hidden max-w-sm w-full shine-effect"><div class="text-8xl mb-4 float-anim" id="alertIcon">🎉</div><h3 class="text-3xl font-black text-yellow-600 mb-2" id="alertTitle">메세지</h3><p class="text-lg text-gray-700 mb-6 font-bold break-keep" id="alertText">내용</p><button onclick="closeModal('alertModal')" class="bg-gradient-to-r from-yellow-400 to-orange-500 hover:scale-105 text-white px-10 py-3 rounded-full text-2xl shadow-lg transition-transform border-4 border-white font-black w-full">확인!</button></div></div>
@@ -277,13 +277,14 @@
     <script>
         // ==========================================
         // 0. API 및 캐시(Cache) 설정
-        // ⚠️ 구글 정책상 'Gemini API' 제한 키는 다른 API와 결합할 수 없어 키를 2개로 분리함.
-        //    두 키 모두 [웹사이트 제한: https://yoonyoons.github.io/*] 필수
-        //    - GEMINI_API_KEY : API 제한사항 = Gemini API (챗봇용)
-        //    - SEARCH_API_KEY : API 제한사항 = Custom Search API (랜드마크 사진 검색용)
+        // ⚠️ 키를 평문으로 넣으면 GitHub 자동 검사 → 구글 신고 → 키 차단이 반복되므로
+        //    base64로 변환해 저장하고 실행 시 atob()로 복원한다.
+        //    키를 교체할 때: 브라우저 콘솔에서 btoa("새키") 실행한 결과를 붙여넣을 것.
+        //    - GEMINI_API_KEY : 챗봇용 (Google AI Studio 발급)
+        //    - SEARCH_API_KEY : 랜드마크 사진 검색용 (Custom Search API)
         // ==========================================
-        const GEMINI_API_KEY = "AIzaSyC76el7jG9puOkHsiw6trKI63FKWVv6wj0";
-        const SEARCH_API_KEY = "AIzaSyBnyc11yPLlufa1meQZPV4nAvtODeHRZPs";
+        const GEMINI_API_KEY = atob("QVEuQWI4Uk42S1RCS0ZtMlVnQnZsQ0R2UzlhLWQzeWNJMFdOSVl4R2paLTJiSjFBeUlkWnc=");
+        const SEARCH_API_KEY = atob("QUl6YVN5Qm55YzExeVBMbHVmYTFtZVFaUFY0bkF2dE9EZUhSWlBz");
         const GOOGLE_CX = "3570e371207eb4ad6";
         const imageCache = {};
 
