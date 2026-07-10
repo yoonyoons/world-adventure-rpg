@@ -417,7 +417,7 @@
                 if (GOOGLE_CX && SEARCH_API_KEY && !SEARCH_API_KEY.startsWith("여기에")) {
                     const query = encodeURIComponent(`${countryName} ${landmarkName}`);
                     const url = `https://customsearch.googleapis.com/customsearch/v1?q=${query}&cx=${GOOGLE_CX}&key=${SEARCH_API_KEY}&searchType=image&num=5&safe=active&imgSize=large`;
-                    const res = await fetch(url);
+                    const res = await fetch(url, { referrerPolicy: 'no-referrer-when-downgrade' });
                     const data = await res.json();
                     if (data.items && data.items.length > 0) {
                         // 원본 이미지를 먼저 시도하고, 핫링크가 막힌 경우를 대비해 구글 썸네일(gstatic)을 예비로 추가
@@ -669,6 +669,8 @@
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    // 키의 웹사이트 제한(https://yoonyoons.github.io/*)이 통과되도록 전체 주소를 리퍼러로 전송
+                    referrerPolicy: 'no-referrer-when-downgrade',
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                 });
                 const data = await res.json();
